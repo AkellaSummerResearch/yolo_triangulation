@@ -18,7 +18,7 @@
 // Locally defined libraries
 #include "yolo_triangulation/msg_conversions.h"
 #include "yolo_triangulation/triangulation.hpp"
-
+uint count = 0;
 class Triangulation
 {
   ros::NodeHandle nh_;
@@ -80,11 +80,11 @@ public:
     // Camera rotation
     Eigen::Quaterniond q_enu = msg_conversions::ros_to_eigen_quat(odom_.pose.pose.orientation);
     Eigen::Quaterniond q_cam = q_enu*q_enu2cam_;
-    Eigen::Matrix3d Rcw = q_cam.toRotationMatrix();
+    Eigen::Matrix3d Rcw = q_cam.toRotationMatrix().transpose();
 
     // Camera position
     Eigen::Vector3d pos_w = msg_conversions::ros_point_to_eigen_vector(odom_.pose.pose.position);
-    Eigen::Vector3d pos_c = Rcw*pos_w;
+    Eigen::Vector3d pos_c = -Rcw*pos_w;
 
     TransfMat_ = cv::Matx34d(Rcw(0,0), Rcw(0,1), Rcw(0,2), pos_c(0),
                              Rcw(1,0), Rcw(1,1), Rcw(1,2), pos_c(1),
@@ -96,20 +96,24 @@ public:
       ROS_WARN("[YOLO triangulation] No pose data!");
       return;
     }
-    std::cout << "dt: " << (bbox.header.stamp - odom_.header.stamp).toSec() << std::endl;
+    // std::cout << "dt: " << (bbox.header.stamp - odom_.header.stamp).toSec() << std::endl;
 
     for(uint i = 0; i < bbox.bounding_boxes.size(); i++) {
       if (bbox.bounding_boxes[i].Class == tracking_class_name_) {
+       count++;
        double x_center = 0.5*(bbox.bounding_boxes[i].xmin + bbox.bounding_boxes[i].xmax);
        double y_center = 0.5*(bbox.bounding_boxes[i].ymin + bbox.bounding_boxes[i].ymax);
        feature_points_.push_back(cv::Point2d(x_center, y_center));
        ProjMatrices_.push_back(CamMatrix_*TransfMat_);
+       // std::cout << "p(" << count << ",:) = " << cv::Point2d(x_center, y_center) << ";" << std::endl;
+       // std::cout << "T(:,:," << count << ") = " << TransfMat_ << ";" << std::endl;
+       // std::cout << "CamMatrix_: " << std::endl << CamMatrix_ << std::endl;
       }
     }
-    ROS_INFO("Number of feature points: %zd", feature_points_.size());
+    // ROS_INFO("Number of feature points: %zd", feature_points_.size());
 
     if(feature_points_.size() > 10) {
-      ROS_INFO("Calculating feature location!");
+      // ROS_INFO("Calculating feature location!");
       uint N = feature_points_.size();
       cv::Mat_<double> points(2, N);
       for (uint i = 0; i < feature_points_.size(); i++) {
@@ -118,10 +122,15 @@ public:
       }
       cv::Vec3d X;
       cv::sfm::triangulateNViews(points, ProjMatrices_, X);
-      ROS_INFO("Feature location calculated: ");
-      std::cout << "solution point: " << X << std::endl;
+      // cv::Vec4d X_h(X[0], X[1], X[2], 1.0);
+      // ROS_INFO("Feature location calculated: ");
+      // std::cout << "solution point: " << X << std::endl;
       // for (uint i = 0; i < feature_points_.size(); i++) {
-      //   std::cout << "reprojected point: " << ProjMatrices_[i]*X << "\tmeasured point: " << feature_points_[i] << std::endl;
+        // cv::Vec3d proj_point = ProjMatrices_[i]*X_h;
+        // std::cout << "p_proj(" << i+1 <<  ",:) = " << proj_point/proj_point[2] << ";" << std::endl;
+        // std::cout << "measured point: " << feature_points_[i] << std::endl;
+      //   std::cout << "error: [" << proj_point[0]/proj_point[2] - feature_points_[i].x <<
+      //                ", " << proj_point[1]/proj_point[2] - feature_points_[i].y << std::endl;
       // }
     }
   }

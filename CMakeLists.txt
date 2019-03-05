@@ -44,7 +44,7 @@ include
 add_executable(yolo_triangulation src/triangulation_node.cpp
                                   src/msg_conversions.cpp
                                   src/triangulation.cpp)
-add_dependencies(yolo_triangulation yolo_triangulation_generate_messages_cpp)
+# add_dependencies(yolo_triangulation yolo_triangulation_generate_messages_cpp)
 add_dependencies(yolo_triangulation ${catkin_EXPORTED_TARGETS})
 add_dependencies(yolo_triangulation darknet_ros_msgs_gencpp)
 target_link_libraries(yolo_triangulation ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
