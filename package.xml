@@ -57,7 +57,8 @@
   <build_depend>darknet_ros_msgs</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>cmake_modules</build_depend>
-  
+  <build_depend>mg_msgs</build_depend>
+  <build_depend>std_srvs</build_depend>
 
   <build_export_depend>cv_bridge</build_export_depend>
   <build_export_depend>image_transport</build_export_depend>
@@ -67,6 +68,8 @@
   <build_export_depend>darknet_ros_msgs</build_export_depend>
   <build_export_depend>nav_msgs</build_export_depend>
   <build_export_depend>cmake_modules</build_export_depend>
+  <build_export_depend>mg_msgs</build_export_depend>
+  <build_export_depend>std_srvs</build_export_depend>
 
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>image_transport</exec_depend>
@@ -76,6 +79,8 @@
   <exec_depend>darknet_ros_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>cmake_modules</exec_depend>
+  <exec_depend>mg_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

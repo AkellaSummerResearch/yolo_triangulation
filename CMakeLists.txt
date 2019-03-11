@@ -17,6 +17,8 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   cmake_modules
   message_generation
+  mg_msgs
+  std_srvs
 )
 
 find_package(OpenCV REQUIRED)
@@ -43,7 +45,7 @@ include
 
 add_executable(yolo_triangulation src/triangulation_node.cpp
                                   src/msg_conversions.cpp
-                                  src/triangulation.cpp)
+                                  src/visualization_functions.cpp)
 # add_dependencies(yolo_triangulation yolo_triangulation_generate_messages_cpp)
 add_dependencies(yolo_triangulation ${catkin_EXPORTED_TARGETS})
 add_dependencies(yolo_triangulation darknet_ros_msgs_gencpp)

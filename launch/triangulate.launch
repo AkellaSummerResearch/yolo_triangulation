@@ -9,8 +9,8 @@
 		<param name="cx" value="320.2873229980469"/>
 		<param name="cy" value="239.86740112304688"/>
 
-		<!-- Class to track for -->
-		<param name="tracking_class_name" value="like_a_boss"/>
+		<!-- Camera position in body frame (in meters) -->
+		<rosparam param="cam_pos_body_frame"> [0.15, 0.0, 0.0] </rosparam>
 
 		<!-- Subscribing topics -->
 		<param name="input_pose_topic" value="/$(arg namespace)/local_odom"/>
