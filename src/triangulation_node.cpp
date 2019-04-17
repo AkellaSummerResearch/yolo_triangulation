@@ -23,18 +23,18 @@
 #include <mg_msgs/set_strings.h>
 #include <std_srvs/Trigger.h>
 
-
 class Triangulation
 {
   ros::NodeHandle nh_;
-  ros::Subscriber pose_sub_, bbox_sub_;
+  std::vector<ros::Subscriber> pose_sub_, bbox_sub_;
   std::string in_pose_topic_, in_BBox_topic_;
   std::vector<std::string> tracking_class_names_;
   nav_msgs::Odometry odom_;
-  Eigen::MatrixXd TransfMat_;
+  std::vector<Eigen::MatrixXd> TransfMat_;
   Eigen::Matrix3d CamMatrix_;
   Eigen::Quaterniond q_enu2cam_;
   Eigen::Vector3d cam_pos_body_frame_;
+  std::vector<std::string> namespaces_;
 
   std::vector<std::vector<Eigen::Vector2d>> feature_points_;
   std::vector<std::vector<Eigen::MatrixXd>> ProjMatrices_;
@@ -51,6 +51,7 @@ public:
     // Get parameters
     nh_.getParam("input_pose_topic", in_pose_topic_);
     nh_.getParam("input_bounding_boxes_topic", in_BBox_topic_);
+    nh_.getParam("namespaces", namespaces_);
     // nh_.getParam("tracking_class_name", tracking_class_name_);
 
     // Get cam position in body frame
@@ -68,8 +69,6 @@ public:
     this->SetCamMatrix(fx, fy, cx, cy);
     // std::cout << "CamMatrix_: " << std::endl << CamMatrix_ << std::endl;
 
-    TransfMat_ = Eigen::MatrixXd(3,4);
-
     // Quaternion to rotate from z pointing up to z pointing outwards from camera
     q_enu2cam_ = Eigen::Quaterniond(0.5, -0.5, 0.5, -0.5);
 
@@ -84,11 +83,22 @@ public:
     stop_batch_srv_ = nh_.advertiseService("stop_collecting_yolo_data", &Triangulation::StopDataCollection, this);
 
     // Subscribe to input video feed and publish output video feed
-    pose_sub_ = nh_.subscribe(in_pose_topic_, 1, &Triangulation::pose_callback, this);
-    bbox_sub_ = nh_.subscribe(in_BBox_topic_, 1, &Triangulation::yolo_callback, this);
+    pose_sub_.resize(namespaces_.size());
+    bbox_sub_.resize(namespaces_.size());
+    TransfMat_.resize(namespaces_.size());
+    for (uint i = 0; i < namespaces_.size(); i++) {
+      std::string pose_topic = "/" + namespaces_[i] + in_pose_topic_;
+      std::string BBox_topic = "/" + namespaces_[i] + in_BBox_topic_;
+      pose_sub_[i] = nh_.subscribe<nav_msgs::Odometry>
+          (pose_topic, 1, boost::bind(&Triangulation::pose_callback, this, _1, i));
+      bbox_sub_[i] = nh_.subscribe<darknet_ros_msgs::BoundingBoxes>
+          (BBox_topic, 1, boost::bind(&Triangulation::yolo_callback, this, _1, i));
+      ROS_INFO("[YOLO triangulation] Input pose topic: %s", pose_sub_[i].getTopic().c_str());
+      ROS_INFO("[YOLO triangulation] Input bounding box topic: %s", bbox_sub_[i].getTopic().c_str());
 
-    ROS_INFO("[YOLO triangulation] Input pose topic: %s", pose_sub_.getTopic().c_str());
-    ROS_INFO("[YOLO triangulation] Input bounding box topic: %s", bbox_sub_.getTopic().c_str());
+      // Set matrix size for TransfMat
+      TransfMat_[i] = Eigen::MatrixXd(3,4);
+    }
     // ROS_INFO("[YOLO triangulation] Triangulating class: %s", tracking_class_name_.c_str());
 
   }
@@ -102,7 +112,8 @@ public:
                   0.0, 0.0, 1.0;
   }
 
-  void pose_callback(const nav_msgs::Odometry::ConstPtr &odom) {
+  // Index represents the source of pose when swarming
+  void pose_callback(const nav_msgs::Odometry::ConstPtr &odom, const uint &index) {
     odom_ = *odom;
 
     // Camera rotation
@@ -116,28 +127,29 @@ public:
       q_enu.toRotationMatrix()*cam_pos_body_frame_ + msg_conversions::ros_point_to_eigen_vector(odom_.pose.pose.position);
     Eigen::Vector3d pos_c = -Rcw*pos_w;
 
-    TransfMat_ << Rcw(0,0), Rcw(0,1), Rcw(0,2), pos_c(0),
-                  Rcw(1,0), Rcw(1,1), Rcw(1,2), pos_c(1),
-                  Rcw(2,0), Rcw(2,1), Rcw(2,2), pos_c(2);
+    TransfMat_[index] << Rcw(0,0), Rcw(0,1), Rcw(0,2), pos_c(0),
+                         Rcw(1,0), Rcw(1,1), Rcw(1,2), pos_c(1),
+                         Rcw(2,0), Rcw(2,1), Rcw(2,2), pos_c(2);
   }
 
-  void yolo_callback(const darknet_ros_msgs::BoundingBoxes& bbox) {
+  // Index represents the source of the detection when swarming
+  void yolo_callback(const darknet_ros_msgs::BoundingBoxes::ConstPtr& bbox, const uint &index) {
     if (!get_data_) {
       return;
     }
-
+    
     if(odom_.header.stamp.toSec() == 0) {
       ROS_WARN("[YOLO triangulation] No pose data!");
       return;
     }
 
-    for(uint i = 0; i < bbox.bounding_boxes.size(); i++) {
+    for(uint i = 0; i < bbox->bounding_boxes.size(); i++) {
       for (uint j = 0; j < tracking_class_names_.size(); j++) {
-        if (bbox.bounding_boxes[i].Class == tracking_class_names_[j]) {
-          double x_center = 0.5*(bbox.bounding_boxes[i].xmin + bbox.bounding_boxes[i].xmax);
-          double y_center = 0.5*(bbox.bounding_boxes[i].ymin + bbox.bounding_boxes[i].ymax);
+        if (bbox->bounding_boxes[i].Class == tracking_class_names_[j]) {
+          double x_center = 0.5*(bbox->bounding_boxes[i].xmin + bbox->bounding_boxes[i].xmax);
+          double y_center = 0.5*(bbox->bounding_boxes[i].ymin + bbox->bounding_boxes[i].ymax);
           feature_points_[j].push_back(Eigen::Vector2d(x_center, y_center));
-          ProjMatrices_[j].push_back(CamMatrix_*TransfMat_);
+          ProjMatrices_[j].push_back(CamMatrix_*TransfMat_[index]);
           this->SolveTriangulation(false);
         }
       }
@@ -207,14 +219,14 @@ public:
                           const std::vector<std::string> &feature_names) {
     const std::string frame_id = "map", ns = "defect_position";
     const double size = 0.05;
-    const std_msgs::ColorRGBA blue_color = visualization_functions::Color::Blue();
+    const std_msgs::ColorRGBA orange_color = visualization_functions::Color::Orange();
     const std_msgs::ColorRGBA yellow_color = visualization_functions::Color::Yellow();
     const double transparency = 1.0;
     visualization_msgs::MarkerArray marker_array;
 
     // Create markers for positions
     visualization_functions::DrawNodes(feature_positions, frame_id, ns, size,
-               blue_color, transparency, &marker_array);
+               orange_color, transparency, &marker_array);
 
     // Name the markers
     for (uint j = 0; j < feature_names.size(); j++) {

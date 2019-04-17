@@ -2,7 +2,6 @@
 
 	<arg name="namespace" default="Bilbo" />
     <node pkg="yolo_triangulation" type="yolo_triangulation" name="triangulation" output="screen">
-
 		<!-- Camera parameters -->
 		<param name="fx" value="609.9031982421875"/>
 		<param name="fy" value="609.9591064453125"/>
@@ -12,10 +11,12 @@
 		<!-- Camera position in body frame (in meters) -->
 		<rosparam param="cam_pos_body_frame"> [0.15, 0.0, 0.0] </rosparam>
 
+		<!-- Namespaces of input topics -->
+		<rosparam param="namespaces" subst_value="true"> [$(arg namespace)] </rosparam>
+
 		<!-- Subscribing topics -->
-		<param name="input_pose_topic" value="/$(arg namespace)/local_odom"/>
+		<param name="input_pose_topic" value="/local_odom"/>
 		<param name="input_bounding_boxes_topic" value="/darknet_ros/bounding_boxes"/>
-    
 	</node>
 
 </launch>
