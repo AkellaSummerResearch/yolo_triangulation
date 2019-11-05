@@ -15,7 +15,7 @@
 		<rosparam param="namespaces" subst_value="true"> [$(arg namespace)] </rosparam>
 
 		<!-- Subscribing topics -->
-		<param name="input_pose_topic" value="/local_odom"/>
+		<param name="input_pose_topic" value="/t265/odom/center_of_mass"/>
 		<param name="input_bounding_boxes_topic" value="/darknet_ros/bounding_boxes"/>
 	</node>
 
